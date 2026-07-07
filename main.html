@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic Workflow · Vibe Generator</title>
+    <!-- Tailwind + Font Awesome -->
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <style>
+        body {
+            background: #f6f9fc;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .workflow-card {
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.2s ease;
+        }
+        .step-node {
+            background: white;
+            border-radius: 1rem;
+            border: 1px solid #e9edf2;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.02);
+            transition: all 0.15s;
+            position: relative;
+        }
+        .step-node:hover {
+            border-color: #b3c9e0;
+            box-shadow: 0 8px 18px rgba(0, 80, 200, 0.06);
+        }
+        .step-type-badge {
+            font-size: 0.65rem;
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            padding: 0.2rem 0.7rem;
+            border-radius: 40px;
+            background: #eef3f9;
+            color: #1f3a5f;
+        }
+        .arrow-line {
+            height: 2px;
+            background: #d0dbe8;
+            flex: 1;
+            margin: 0 10px;
+            min-width: 20px;
+            position: relative;
+        }
+        .arrow-line::after {
+            content: "›";
+            position: absolute;
+            right: -12px;
+            top: -12px;
+            font-size: 20px;
+            color: #8899b0;
+            font-weight: 300;
+        }
+        .delete-btn,
+        .edit-btn {
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .delete-btn {
+            color: #b91c1c;
+        }
+        .edit-btn {
+            color: #1f4977;
+        }
+        .delete-btn:hover,
+        .edit-btn:hover {
+            opacity: 1;
+        }
+        .add-step-btn {
+            background: white;
+            border: 1px dashed #b8ccdd;
+            border-radius: 3rem;
+            padding: 0.3rem 1.2rem;
+            color: #1f4977;
+            font-weight: 500;
+            transition: 0.1s;
+        }
+        .add-step-btn:hover {
+            background: #f2f7ff;
+            border-color: #4d7bb3;
+        }
+        .input-prompt {
+            border-radius: 60px;
+            border: 1px solid #dce3ec;
+            padding: 0.9rem 1.8rem;
+            font-size: 1rem;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+        }
+        .input-prompt:focus {
+            outline: none;
+            border-color: #3b7bc9;
+            box-shadow: 0 0 0 3px rgba(59, 123, 201, 0.2);
+        }
+        .btn-generate {
+            background: #1a3d6b;
+            color: white;
+            border-radius: 60px;
+            padding: 0.9rem 2.2rem;
+            font-weight: 600;
+            border: none;
+            transition: 0.15s;
+            box-shadow: 0 4px 10px rgba(26, 61, 107, 0.15);
+        }
+        .btn-generate:hover {
+            background: #0f2d50;
+            transform: scale(1.01);
+        }
+        .btn-generate:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-download {
+            background: #0b3b2c;
+            color: white;
+            border-radius: 60px;
+            padding: 0.6rem 1.5rem;
+            font-weight: 500;
+            border: none;
+            transition: 0.15s;
+            box-shadow: 0 4px 10px rgba(11, 59, 44, 0.15);
+        }
+        .btn-download:hover {
+            background: #082b20;
+            transform: scale(1.01);
+        }
+        .btn-download:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .workflow-container {
+            min-height: 200px;
+        }
+        .empty-state {
+            color: #7a8ba3;
+            font-size: 1rem;
+        }
+        /* edit modal overlay */
+        .edit-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+        }
+        .edit-modal {
+            background: white;
+            border-radius: 2rem;
+            padding: 2rem 2.5rem;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+        }
+        .download-section {
+            border-top: 1px solid #e5ecf3;
+            padding-top: 1.2rem;
+            margin-top: 0.5rem;
+            display: flex;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body class="p-6 md:p-10 flex justify-center items-start min-h-screen">
+
+    <div class="max-w-6xl w-full">
+
+        <!-- header -->
+        <div class="flex items-center justify-between gap-3 mb-6">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-diagram-project text-3xl text-[#1a3d6b]"></i>
+                <h1 class="text-3xl font-semibold tracking-tight text-[#0a1f33]">Dynamic Workflow</h1>
+            </div>
+            
+        </div>
+
+        <!-- input area -->
+        <div class="workflow-card p-6 md:p-8 mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1">
+                    <input type="text" id="promptInput" class="input-prompt w-full"
+                    placeholder='e.g. "I need a customer complaint resolution process where the complaint is logged, assigned to an executive, escalated if unresolved within 48 hours, and finally closed after customer confirmation."'>
+                </div>
+                <button id="generateBtn" class="btn-generate flex items-center justify-center gap-2 md:w-auto w-full">
+                    <i class="fas fa-wand-sparkles"></i> Generate
+                </button>
+            </div>
+            <div class="text-xs text-[#5b738e] mt-3 flex gap-4 flex-wrap">
+                <span><i class="far fa-lightbulb mr-1"></i> Try: "employee onboarding: HR collects docs, IT allocates laptop, manager schedules induction, employee completes training."</span>
+            </div>
+        </div>
+
+        <!-- workflow canvas -->
+        <div class="workflow-card p-6 md:p-8">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-sitemap text-[#1f4977]"></i>
+                    <span class="font-medium text-[#1a2f4a]">Workflow steps</span>
+                    <span id="stepCounter" class="text-xs bg-[#eaf1fb] px-3 py-0.5 rounded-full text-[#1f4977]">0 steps</span>
+                </div>
+                <div class="flex gap-2">
+                    <button id="downloadBtn" class="btn-download flex items-center gap-2 text-sm" disabled>
+                        <i class="fas fa-file-arrow-down"></i> Download 
+                    </button>
+                    <button id="resetWorkflowBtn" class="text-sm text-[#5b738e] hover:text-[#a03030] transition px-3 py-1 rounded-full hover:bg-red-50/60">
+                        <i class="far fa-trash-alt mr-1"></i> Reset
+                    </button>
+                </div>
+            </div>
+
+            <div id="workflowContainer" class="workflow-container flex flex-wrap items-center gap-4 py-3">
+                <!-- dynamic workflow injected here -->
+                <div class="empty-state w-full text-center py-8">
+                    <i class="fas fa-arrow-right text-2xl block mb-2 opacity-30"></i>
+                    <span>Describe a process and generate a workflow</span>
+                </div>
+            </div>
+
+            <!-- add step inline (visible when workflow exists) -->
+            <div id="addStepArea" class="mt-6 hidden border-t border-[#e5ecf3] pt-5 flex justify-center">
+                <button id="addStepBtn" class="add-step-btn flex items-center gap-2 text-sm">
+                    <i class="fas fa-plus-circle"></i> Add step
+                </button>
+            </div>
+
+            <!-- download section (visible when workflow exists) -->
+            <div id="downloadSection" class="download-section hidden">
+                <button id="downloadBtnBottom" class="btn-download flex items-center gap-2 text-sm">
+                    <i class="fas fa-file-arrow-down"></i> Download workflow as .txt
+                </button>
+            </div>
+        </div>
+
+        <!-- footer note -->
+        <div class="text-center text-[#7b93ae] text-xs mt-6 opacity-70">
+            <i class="fas fa-code mr-1"></i> generated with LLM · click <i class="fas fa-pen text-[#1f4977]"></i> to edit · JSON representation
+        </div>
+    </div>
+
+    <!-- Edit Modal (hidden by default) -->
+    <div id="editModal" class="edit-modal-overlay hidden">
+        <div class="edit-modal">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-[#0a1f33]"><i class="fas fa-pen-to-square mr-2 text-[#1f4977]"></i>Edit step</h3>
+                <button id="closeModalBtn" class="text-slate-400 hover:text-slate-700 text-xl">&times;</button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Step name</label>
+                    <input id="editNameInput" type="text" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-600 mb-1">Step type</label>
+                    <select id="editTypeSelect" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none bg-white">
+                        <option value="Input">Input</option>
+                        <option value="Action">Action</option>
+                        <option value="Approval">Approval</option>
+                        <option value="Notification">Notification</option>
+                        <option value="Decision">Decision</option>
+                        <option value="End">End</option>
+                    </select>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button id="cancelEditBtn" class="px-5 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition">Cancel</button>
+                    <button id="saveEditBtn" class="px-5 py-2 bg-[#1a3d6b] text-white rounded-xl hover:bg-[#0f2d50] transition">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ----- state -----
+            let workflowSteps = [];
+            let stepIdCounter = 100;
+            let editingStepId = null;
+
+            // ----- DOM refs -----
+            const promptInput = document.getElementById('promptInput');
+            const generateBtn = document.getElementById('generateBtn');
+            const workflowContainer = document.getElementById('workflowContainer');
+            const stepCounter = document.getElementById('stepCounter');
+            const addStepArea = document.getElementById('addStepArea');
+            const addStepBtn = document.getElementById('addStepBtn');
+            const resetBtn = document.getElementById('resetWorkflowBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const downloadBtnBottom = document.getElementById('downloadBtnBottom');
+            const downloadSection = document.getElementById('downloadSection');
+
+            // modal elements
+            const editModal = document.getElementById('editModal');
+            const editNameInput = document.getElementById('editNameInput');
+            const editTypeSelect = document.getElementById('editTypeSelect');
+            const saveEditBtn = document.getElementById('saveEditBtn');
+            const cancelEditBtn = document.getElementById('cancelEditBtn');
+            const closeModalBtn = document.getElementById('closeModalBtn');
+
+            // ----- helper: LLM simulation (vibe) -----
+            function simulateLLM(promptText) {
+                const lower = promptText.toLowerCase();
+                let steps = [];
+
+                if (lower.includes('onboarding') || (lower.includes('employee') && lower.includes('hr') && lower.includes(
+                    'it'))) {
+                    steps = [
+                        { id: stepIdCounter++, name: 'HR collects documents', type: 'Input' },
+                        { id: stepIdCounter++, name: 'IT allocates laptop', type: 'Action' },
+                        { id: stepIdCounter++, name: 'Manager schedules induction', type: 'Action' },
+                        { id: stepIdCounter++, name: 'Employee completes training', type: 'Action' },
+                        { id: stepIdCounter++, name: 'Onboarding complete', type: 'End' },
+                    ];
+                } else if (lower.includes('complaint') || lower.includes('resolution') || lower.includes('customer')) {
+                    steps = [
+                        { id: stepIdCounter++, name: 'Complaint logged', type: 'Input' },
+                        { id: stepIdCounter++, name: 'Assigned to executive', type: 'Action' },
+                        { id: stepIdCounter++, name: 'Escalation check (48h)', type: 'Decision' },
+                        { id: stepIdCounter++, name: 'Resolve & notify customer', type: 'Notification' },
+                        { id: stepIdCounter++, name: 'Customer confirmation', type: 'Approval' },
+                        { id: stepIdCounter++, name: 'Complaint closed', type: 'End' },
+                    ];
+                } else {
+                    steps = [
+                        { id: stepIdCounter++, name: 'Identify process start', type: 'Input' },
+                        { id: stepIdCounter++, name: 'Execute core action', type: 'Action' },
+                        { id: stepIdCounter++, name: 'Review & approve', type: 'Approval' },
+                        { id: stepIdCounter++, name: 'Finalize', type: 'End' },
+                    ];
+                }
+                return steps;
+            }
+
+            // ----- render workflow -----
+            function renderWorkflow() {
+                const hasSteps = workflowSteps.length > 0;
+                workflowContainer.innerHTML = '';
+
+                if (!hasSteps) {
+                    workflowContainer.innerHTML = `
+                <div class="empty-state w-full text-center py-8">
+                  <i class="fas fa-arrow-right text-2xl block mb-2 opacity-30"></i>
+                  <span>Describe a process and generate a workflow</span>
+                </div>
+              `;
+                    addStepArea.classList.add('hidden');
+                    downloadSection.classList.add('hidden');
+                    downloadBtn.disabled = true;
+                    downloadBtnBottom.disabled = true;
+                    stepCounter.textContent = '0 steps';
+                    return;
+                }
+
+                addStepArea.classList.remove('hidden');
+                downloadSection.classList.remove('hidden');
+                downloadBtn.disabled = false;
+                downloadBtnBottom.disabled = false;
+                stepCounter.textContent = `${workflowSteps.length} steps`;
+
+                workflowSteps.forEach((step, index) => {
+                    const stepDiv = document.createElement('div');
+                    stepDiv.className = 'step-node flex items-center gap-2 px-4 py-2.5 min-w-[140px]';
+
+                    let icon = 'fa-circle-check';
+                    if (step.type === 'Input') icon = 'fa-pen-to-square';
+                    else if (step.type === 'Approval') icon = 'fa-check-double';
+                    else if (step.type === 'Notification') icon = 'fa-bell';
+                    else if (step.type === 'Decision') icon = 'fa-code-branch';
+                    else if (step.type === 'Action') icon = 'fa-bolt';
+                    else if (step.type === 'End') icon = 'fa-flag-checkered';
+
+                    stepDiv.innerHTML = `
+                <i class="fas ${icon} text-[#2f5d8a] text-sm w-5"></i>
+                <span class="text-sm font-medium text-[#1a2f47] flex-1 truncate max-w-[120px]" title="${step.name}">${step.name}</span>
+                <span class="step-type-badge">${step.type}</span>
+                <button class="edit-step-btn edit-btn ml-1" data-id="${step.id}" title="Edit step">
+                  <i class="fas fa-pen"></i>
+                </button>
+                <button class="delete-step-btn delete-btn" data-id="${step.id}" title="Remove step">
+                  <i class="fas fa-times-circle"></i>
+                </button>
+              `;
+
+                    // delete handler
+                    const delBtn = stepDiv.querySelector('.delete-step-btn');
+                    delBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = parseInt(delBtn.dataset.id);
+                        workflowSteps = workflowSteps.filter(s => s.id !== id);
+                        renderWorkflow();
+                    });
+
+                    // edit handler -> open modal
+                    const editBtn = stepDiv.querySelector('.edit-step-btn');
+                    editBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const id = parseInt(editBtn.dataset.id);
+                        openEditModal(id);
+                    });
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'flex items-center';
+                    wrapper.appendChild(stepDiv);
+
+                    if (index < workflowSteps.length - 1) {
+                        const arrow = document.createElement('div');
+                        arrow.className = 'arrow-line';
+                        wrapper.appendChild(arrow);
+                    }
+
+                    workflowContainer.appendChild(wrapper);
+                });
+            }
+
+            // ----- open edit modal -----
+            function openEditModal(stepId) {
+                const step = workflowSteps.find(s => s.id === stepId);
+                if (!step) return;
+                editingStepId = stepId;
+                editNameInput.value = step.name;
+                editTypeSelect.value = step.type;
+                editModal.classList.remove('hidden');
+                editNameInput.focus();
+                editNameInput.select();
+            }
+
+            // ----- close modal -----
+            function closeEditModal() {
+                editModal.classList.add('hidden');
+                editingStepId = null;
+            }
+
+            // ----- save edit -----
+            function saveEdit() {
+                if (editingStepId === null) return;
+                const step = workflowSteps.find(s => s.id === editingStepId);
+                if (!step) return;
+                const newName = editNameInput.value.trim();
+                if (newName === '') {
+                    alert('Step name cannot be empty.');
+                    return;
+                }
+                step.name = newName;
+                step.type = editTypeSelect.value;
+                renderWorkflow();
+                closeEditModal();
+            }
+
+            // ----- add step (user) -----
+            function addUserStep() {
+                const newStep = {
+                    id: stepIdCounter++,
+                    name: `Step ${workflowSteps.length + 1}`,
+                    type: 'Action',
+                };
+                workflowSteps.push(newStep);
+                renderWorkflow();
+                // scroll to new step
+                const container = workflowContainer;
+                container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                // open edit modal for the newly added step
+                openEditModal(newStep.id);
+            }
+
+            // ----- generate from prompt (LLM vibe) -----
+            function generateFromPrompt() {
+                const raw = promptInput.value.trim();
+                if (!raw) {
+                    promptInput.placeholder = 'Please describe a business process...';
+                    promptInput.classList.add('border-amber-300');
+                    setTimeout(() => promptInput.classList.remove('border-amber-300'), 1200);
+                    return;
+                }
+
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+                setTimeout(() => {
+                    const generated = simulateLLM(raw);
+                    workflowSteps = generated.length ? generated : [
+                        { id: stepIdCounter++, name: 'Start process', type: 'Input' },
+                        { id: stepIdCounter++, name: 'Execute', type: 'Action' },
+                        { id: stepIdCounter++, name: 'End', type: 'End' },
+                    ];
+                    renderWorkflow();
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-wand-sparkles"></i> Generate';
+                }, 400);
+            }
+
+            // ----- reset workflow -----
+            function resetWorkflow() {
+                workflowSteps = [];
+                renderWorkflow();
+                promptInput.value = '';
+                promptInput.focus();
+            }
+
+            // ----- download workflow as .txt -----
+            function downloadWorkflowTxt() {
+                if (workflowSteps.length === 0) {
+                    alert('No workflow to download. Generate a workflow first.');
+                    return;
+                }
+
+                // Build a human-readable text representation
+                let lines = [];
+                lines.push('========================================');
+                lines.push('  DYNAMIC WORKFLOW EXPORT');
+                lines.push('========================================');
+                lines.push('');
+                lines.push(`Generated: ${new Date().toLocaleString()}`);
+                lines.push(`Total steps: ${workflowSteps.length}`);
+                lines.push('');
+                lines.push('--- WORKFLOW STEPS ---');
+                lines.push('');
+
+                workflowSteps.forEach((step, index) => {
+                    const num = (index + 1).toString().padStart(2, ' ');
+                    lines.push(`${num}. [${step.type}] ${step.name}`);
+                    // add a small arrow between steps (except last)
+                    if (index < workflowSteps.length - 1) {
+                        lines.push('     ↓');
+                    }
+                });
+
+                lines.push('');
+                lines.push('--- END OF WORKFLOW ---');
+                lines.push('========================================');
+
+                const content = lines.join('\n');
+
+                // Create and trigger download
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `workflow_${new Date().toISOString().slice(0,10)}.txt`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+
+            // ----- event listeners -----
+            generateBtn.addEventListener('click', generateFromPrompt);
+
+            promptInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    generateFromPrompt();
+                }
+            });
+
+            addStepBtn.addEventListener('click', addUserStep);
+            resetBtn.addEventListener('click', resetWorkflow);
+
+            // Download buttons
+            downloadBtn.addEventListener('click', downloadWorkflowTxt);
+            downloadBtnBottom.addEventListener('click', downloadWorkflowTxt);
+
+            // modal events
+            saveEditBtn.addEventListener('click', saveEdit);
+            cancelEditBtn.addEventListener('click', closeEditModal);
+            closeModalBtn.addEventListener('click', closeEditModal);
+            editModal.addEventListener('click', (e) => {
+                if (e.target === editModal) closeEditModal();
+            });
+            // keyboard shortcut: Escape to close modal
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !editModal.classList.contains('hidden')) {
+                    closeEditModal();
+                }
+            });
+
+            // pre-populate with an example (onboarding) to show "happy path"
+            window.addEventListener('DOMContentLoaded', () => {
+                promptInput.value =
+                    'I need an employee onboarding process where HR collects documents, IT allocates a laptop, the manager schedules induction, and the employee completes mandatory training.';
+                setTimeout(() => {
+                    generateFromPrompt();
+                }, 300);
+            });
+
+        })();
+    </script>
+</body>
+</html>
